@@ -1,0 +1,35 @@
+OUTPUT_ARCH(riscv)
+ENTRY(_start)
+
+BASE_ADDRESS = 0x80400000;
+
+SECTIONS
+{
+    . = BASE_ADDRESS;
+    .text : {
+        *(.text.entry)
+        *(.text .text.*)
+        end_text = .;
+    }
+    .rodata : {
+        *(.rodata .rodata.*)
+        *(.srodata .srodata.*)
+        end_rodata = .;
+    }
+    .data : {
+        *(.data .data.*)
+        *(.sdata .sdata.*)
+        end_data = .;
+    }
+    .bss : {
+        start_bss = .;
+        *(.bss .bss.*)
+        *(.sbss .sbss.*)
+        end_bss = .;
+    }
+    /DISCARD/ : {
+        *(.eh_frame)
+        *(.debug*)
+
+    }
+}
