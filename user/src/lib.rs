@@ -3,11 +3,13 @@
 
 #[macro_use]
 pub mod console;
-mod lang_items;
 mod syscall;
 
-#[no_mangle]
-#[link_section = ".text.entry"]
+mod lang_items;
+
+
+#[unsafe(no_mangle)]
+#[unsafe(link_section = ".text.entry")]
 /// This function is the entry point for the program. "C" 兼容
 pub extern "C" fn _start() -> ! {
     clear_bss();
@@ -18,7 +20,7 @@ pub extern "C" fn _start() -> ! {
 
 
 #[linkage = "weak"]
-#[no_mangle]
+#[unsafe(no_mangle)]
 fn main() -> i32 {
     panic!("Cannot find main!");
 }
@@ -36,3 +38,10 @@ use syscall::*;
 
 pub fn write(fd: usize, buf: &[u8]) -> isize { sys_write(fd, buf) }
 pub fn exit(exit_code: i32) -> isize { sys_exit(exit_code) }
+
+pub fn yield_() -> isize {
+    sys_yield()
+}
+pub fn get_time() -> isize {
+    sys_get_time()
+}
