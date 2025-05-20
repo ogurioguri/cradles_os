@@ -49,10 +49,11 @@ pub struct TaskManagerInner {
     current_task: usize,
 }
 
-
+/// A function to get the pointer of a task context debug
 #[unsafe(no_mangle)]
 pub extern "C" fn print_ptr(ptr: usize) {
     println!("[debug] ptr = {:#x}", ptr);
+    
 }
 
 lazy_static! {

@@ -5,7 +5,6 @@
 //! app to load them. We also allocate fixed spaces for each task's
 //! [`KernelStack`] and [`UserStack`].
 
-use crate::config::*;
 use crate::trap::TrapContext;
 use core::arch::asm;
 

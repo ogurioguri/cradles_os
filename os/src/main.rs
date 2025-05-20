@@ -15,8 +15,8 @@
 //! userspace.
 
 
-// #![deny(missing_docs)]
-// #![deny(warnings)]
+#![deny(missing_docs)]
+#![deny(warnings)]
 #![no_std]
 #![no_main]
 
@@ -55,7 +55,10 @@ mod config;
 
 mod loader;
 pub mod task;
+mod mm;
 
+extern crate alloc;
+extern crate bitflags;
 
 
 global_asm!(include_str!("entry.asm"));
