@@ -1,8 +1,7 @@
 
 use buddy_system_allocator::LockedHeap;
 use crate::config::KERNEL_HEAP_SIZE;
-
-
+use core::ptr::addr_of_mut;
 
 ///locked heap has finished the alloc and dealloc
 ///the global_allocator tell rust to use this heap
@@ -21,7 +20,7 @@ pub fn init_heap() {
     unsafe {
         HEAP_ALLOCATOR
             .lock()
-            .init(HEAP_SPACE.as_ptr() as usize, KERNEL_HEAP_SIZE);
+            .init(addr_of_mut!(HEAP_SPACE) as usize, KERNEL_HEAP_SIZE);
     }
 }
 
@@ -31,7 +30,7 @@ pub fn heap_test() {
     use alloc::boxed::Box;
     use alloc::vec::Vec;
 
-    extern "C" {
+    unsafe extern "C" {
         fn sbss();
         fn ebss();
     }

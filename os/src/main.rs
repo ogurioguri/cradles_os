@@ -4,6 +4,7 @@
 //! important ones are:
 //!
 //! - [`trap`]: Handles all cases of switching from userspace to the kernel
+//! - [`task`]: Task management
 //! - [`syscall`]: System call handling and implementation
 //!
 //! The operating system also starts in this module. Kernel code starts
@@ -11,61 +12,40 @@
 //! initialize various pieces of functionality. (See its source code for
 //! details.)
 //!
-//! We then call [`_batch::run_next_app()`] and for the first time go to
+//! We then call [`task::run_first_task()`] and for the first time go to
 //! userspace.
 
-
 #![deny(missing_docs)]
-#![deny(warnings)]
+
 #![no_std]
 #![no_main]
+#![feature(alloc_error_handler)]
 
-use core::arch::global_asm;
+extern crate alloc;
+
+
+extern crate bitflags;
+
 use log::*;
+
+#[path = "boards/qemu.rs"]
+mod board;
 
 #[macro_use]
 mod console;
-mod lang_items;
-
-/// 批处理系统模块
-///
-/// 负责应用程序的加载、初始化和执行控制。
-/// 实现了简单的批处理系统功能，按顺序加载并运行用户
-pub mod _batch;
-mod sbi;
-
-mod sync;
-/// 陷入处理模块
-///
-/// 处理所有从用户空间切换到内核空间的情况，包括：
-/// - 系统调用
-/// - 异常
-/// - 中断
-pub mod trap;
-/// 系统调用模块
-///
-/// 实现了基本的系统调用处理和功能，包括：
-/// - write：用于输出
-/// - exit：用于退出程序
-pub mod syscall;
-
-mod timer;
-
 mod config;
-
+mod lang_items;
 mod loader;
-pub mod task;
 mod mm;
+mod sbi;
+mod sync;
+pub mod syscall;
+pub mod task;
+mod timer;
+pub mod trap;
 
-extern crate alloc;
-extern crate bitflags;
-
-
-global_asm!(include_str!("entry.asm"));
-global_asm!(include_str!("link_app.S"));
-
-
-
+core::arch::global_asm!(include_str!("entry.asm"));
+core::arch::global_asm!(include_str!("link_app.S"));
 
 /// clear BSS segment
 fn clear_bss() {
@@ -73,17 +53,22 @@ fn clear_bss() {
         fn sbss();
         fn ebss();
     }
-    (sbss as usize..ebss as usize).for_each(|a| unsafe { (a as *mut u8).write_volatile(0) });
+    unsafe {
+        core::slice::from_raw_parts_mut(sbss as usize as *mut u8, ebss as usize - sbss as usize)
+            .fill(0);
+    }
 }
 
 /// the rust entry-point of os
 #[unsafe(no_mangle)]
 pub fn rust_main() -> ! {
     clear_bss();
-    // logging::init();
     info!("[kernel] Hello, world!");
+    mm::init();
+    info!("[kernel] back to world!");
+    mm::remap_test();
     trap::init();
-    loader::load_apps();
+    //trap::enable_interrupt();
     trap::enable_timer_interrupt();
     timer::set_next_trigger();
     task::run_first_task();

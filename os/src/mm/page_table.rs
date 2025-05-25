@@ -1,5 +1,5 @@
 
-use super::{PhysicalPageNum, VirtualPageNum,FrameTracker,frame_alloc};
+use super::{PhysicalPageNum, VirtualPageNum,VirtualAddr,FrameTracker,StepByOne,frame_alloc};
 use alloc::vec;
 use alloc::vec::Vec;
 use bitflags::*;
@@ -72,6 +72,7 @@ impl PageTable {
     #[allow(unused)]
     pub fn map(&mut self, vpn: VirtualPageNum, ppn: PhysicalPageNum, flags: PTEFlags) {
         let pte = self.find_pte_create(vpn).unwrap();
+        // println!("vpn {:?} ", vpn);
         assert!(!pte.is_valid(), "vpn {:?} is mapped before mapping", vpn);
         *pte = PageTableEntry::new(ppn, flags | PTEFlags::V);
     }
@@ -127,9 +128,38 @@ impl PageTable {
             frames: Vec::new(),
         }
     }
+    
     ///查找并复制页表项
     pub fn translate(&self, vpn: VirtualPageNum) -> Option<PageTableEntry> {
         self.find_pte(vpn)
             .map(|pte| {pte.clone()})
     }
+    
+    ///按照 satp CSR 格式要求 构造一个无符号 64 位无符号整数，
+    ///使得其分页模式为 SV39 ，且将当前多级页表的根节点所在的物理页号填充进去
+    pub fn token(&self) -> usize {
+        8usize << 60 | self.root_ppn.0
+    }
+}
+
+pub fn translated_byte_buffer(token: usize, ptr: *const u8, len: usize) -> Vec<&'static mut [u8]> {
+    let page_table = PageTable::from_token(token);
+    let mut start = ptr as usize;
+    let end = start + len;
+    let mut v = Vec::new();
+    while start < end {
+        let start_va = VirtualAddr::from(start);
+        let mut vpn = start_va.floor();
+        let ppn = page_table.translate(vpn).unwrap().ppn();
+        vpn.step();
+        let mut end_va: VirtualAddr = vpn.into();
+        end_va = end_va.min(VirtualAddr::from(end));
+        if end_va.page_offset() == 0 {
+            v.push(&mut ppn.get_bytes_array()[start_va.page_offset()..]);
+        } else {
+            v.push(&mut ppn.get_bytes_array()[start_va.page_offset()..end_va.page_offset()]);
+        }
+        start = end_va.into();
+    }
+    v
 }

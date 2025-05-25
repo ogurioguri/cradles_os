@@ -1,8 +1,14 @@
-use crate::config::{PAGE_SIZE, PAGE_SIZE_BITS};
 use super::PageTableEntry;
+use crate::config::{PAGE_SIZE, PAGE_SIZE_BITS};
 use core::fmt::{self, Debug, Formatter};
 
+const PA_WIDTH_SV39: usize = 56;
 
+const VA_WIDTH_SV39: usize = 39;
+
+const PPN_WIDTH_SV39: usize = PA_WIDTH_SV39 - PAGE_SIZE_BITS;
+
+const VPN_WIDTH_SV39: usize = VA_WIDTH_SV39 - PAGE_SIZE_BITS;
 
 #[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq)]
 pub struct PhysicalAddr(pub usize);
@@ -13,25 +19,61 @@ pub struct VirtualAddr(pub usize);
 #[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq)]
 pub struct PhysicalPageNum(pub usize);
 
-#[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Debug)]
+#[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq)]
 pub struct VirtualPageNum(pub usize);
 
-
+impl Debug for VirtualAddr {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        f.write_fmt(format_args!("VA:{:#x}", self.0))
+    }
+}
+impl Debug for VirtualPageNum {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        f.write_fmt(format_args!("VPN:{:#x}", self.0))
+    }
+}
+impl Debug for PhysicalAddr {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        f.write_fmt(format_args!("PA:{:#x}", self.0))
+    }
+}
+impl Debug for PhysicalPageNum {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        f.write_fmt(format_args!("PPN:{:#x}", self.0))
+    }
+}
 
 impl PhysicalAddr {
-    pub fn page_num_floor(&self) -> PhysicalPageNum { PhysicalPageNum(self.0 / PAGE_SIZE) }
-    pub fn page_num_ceil(&self) -> PhysicalPageNum { PhysicalPageNum((self.0 + PAGE_SIZE - 1) / PAGE_SIZE) }
-    
+    pub fn page_num_floor(&self) -> PhysicalPageNum {
+        PhysicalPageNum(self.0 / PAGE_SIZE)
+    }
+    pub fn page_num_ceil(&self) -> PhysicalPageNum {
+        PhysicalPageNum((self.0 + PAGE_SIZE - 1) / PAGE_SIZE)
+    }
+}
+
+impl VirtualAddr {
+    pub fn floor(&self) -> VirtualPageNum {
+        VirtualPageNum(self.0 / PAGE_SIZE)
+    }
+    pub fn ceil(&self) -> VirtualPageNum {
+        if self.0 == 0 {
+            VirtualPageNum(0)
+        } else {
+            VirtualPageNum((self.0 - 1 + PAGE_SIZE) / PAGE_SIZE)
+        }
+    }
+
+    pub fn page_offset(&self) -> usize {
+        self.0 & (PAGE_SIZE - 1)
+    }
 }
 
 impl PhysicalPageNum {
-
     ///页表项为单位，多级页表中的一个页表项
     pub fn get_pte_array(&self) -> &'static mut [PageTableEntry] {
         let pa: PhysicalAddr = self.clone().into();
-        unsafe {
-            core::slice::from_raw_parts_mut(pa.0 as *mut PageTableEntry, 512)
-        }
+        unsafe { core::slice::from_raw_parts_mut(pa.0 as *mut PageTableEntry, 512) }
     }
     ///字节为单位
     pub fn get_bytes_array(&self) -> &'static mut [u8] {
@@ -43,27 +85,48 @@ impl PhysicalPageNum {
         unsafe { (pa.0 as *mut T).as_mut().unwrap() }
     }
 }
-const PA_WIDTH_SV39: usize = 56;
-const PPN_WIDTH_SV39: usize = PA_WIDTH_SV39 - PAGE_SIZE_BITS;
-
-
 
 impl From<usize> for PhysicalAddr {
-    fn from(v: usize) -> Self { Self(v & ( (1 << PA_WIDTH_SV39) - 1 )) }
+    fn from(v: usize) -> Self {
+        Self(v & ((1 << PA_WIDTH_SV39) - 1))
+    }
 }
 impl From<usize> for PhysicalPageNum {
-    fn from(v: usize) -> Self { Self(v & ( (1 << PPN_WIDTH_SV39) - 1 )) }
+    fn from(v: usize) -> Self {
+        Self(v & ((1 << PPN_WIDTH_SV39) - 1))
+    }
 }
 
+impl From<usize> for VirtualAddr {
+    fn from(v: usize) -> Self {
+        Self(v & ((1 << VA_WIDTH_SV39) - 1))
+    }
+}
+impl From<usize> for VirtualPageNum {
+    fn from(v: usize) -> Self {
+        Self(v & ((1 << VPN_WIDTH_SV39) - 1))
+    }
+}
 impl From<PhysicalAddr> for usize {
-    fn from(v: PhysicalAddr) -> Self { v.0 }
+    fn from(v: PhysicalAddr) -> Self {
+        v.0
+    }
 }
 impl From<PhysicalPageNum> for usize {
-    fn from(v: PhysicalPageNum) -> Self { v.0 }
+    fn from(v: PhysicalPageNum) -> Self {
+        v.0
+    }
 }
 
+impl From<VirtualPageNum> for VirtualAddr {
+    fn from(v: VirtualPageNum) -> Self {
+        Self(v.0 << PAGE_SIZE_BITS)
+    }
+}
 impl PhysicalAddr {
-    pub fn page_offset(&self) -> usize { self.0 & (PAGE_SIZE - 1) }
+    pub fn page_offset(&self) -> usize {
+        self.0 & (PAGE_SIZE - 1)
+    }
 }
 
 impl From<PhysicalAddr> for PhysicalPageNum {
@@ -74,7 +137,9 @@ impl From<PhysicalAddr> for PhysicalPageNum {
 }
 
 impl From<PhysicalPageNum> for PhysicalAddr {
-    fn from(v: PhysicalPageNum) -> Self { Self(v.0 << PAGE_SIZE_BITS) }
+    fn from(v: PhysicalPageNum) -> Self {
+        Self(v.0 << PAGE_SIZE_BITS)
+    }
 }
 
 impl VirtualPageNum {
@@ -88,6 +153,29 @@ impl VirtualPageNum {
         idx
     }
 }
+impl From<VirtualAddr> for usize {
+    ///符号扩展
+    fn from(v: VirtualAddr) -> Self {
+        if v.0 >= (1 << (VA_WIDTH_SV39 - 1)) {
+            v.0 | (!((1 << VA_WIDTH_SV39) - 1))
+        } else {
+            v.0
+        }
+    }
+}
+impl From<VirtualPageNum> for usize {
+    fn from(v: VirtualPageNum) -> Self {
+        v.0
+    }
+}
+
+impl From<VirtualAddr> for VirtualPageNum {
+    fn from(v: VirtualAddr) -> Self {
+        assert_eq!(v.page_offset(), 0);
+        v.floor()
+    }
+}
+
 pub trait StepByOne {
     fn step(&mut self);
 }
@@ -163,4 +251,3 @@ where
     }
 }
 pub type VPNRange = SimpleRange<VirtualPageNum>;
-
