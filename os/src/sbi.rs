@@ -19,3 +19,8 @@ pub fn set_timer(timer: usize) {
     //类型推断
     set_timer(timer as _);
 }
+
+pub fn console_getchar() -> usize {
+    #[allow(deprecated)]
+    sbi_rt::legacy::console_getchar()
+}

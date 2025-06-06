@@ -1,8 +1,9 @@
 
-use super::{PhysicalPageNum, VirtualPageNum,VirtualAddr,FrameTracker,StepByOne,frame_alloc};
+use super::{PhysicalPageNum,PhysicalAddr, VirtualPageNum,VirtualAddr,FrameTracker,StepByOne,frame_alloc};
 use alloc::vec;
 use alloc::vec::Vec;
 use bitflags::*;
+use alloc::string::String;
 
 bitflags! {
     pub struct PTEFlags: u8 {
@@ -140,6 +141,17 @@ impl PageTable {
     pub fn token(&self) -> usize {
         8usize << 60 | self.root_ppn.0
     }
+
+    pub fn translate_va(&self, va: VirtualAddr) -> Option<PhysicalAddr> {
+        self.find_pte(va.clone().floor()).map(|pte| {
+            //println!("translate_va:va = {:?}", va);
+            let aligned_pa: PhysicalAddr = pte.ppn().into();
+            //println!("translate_va:pa_align = {:?}", aligned_pa);
+            let offset = va.page_offset();
+            let aligned_pa_usize: usize = aligned_pa.into();
+            (aligned_pa_usize + offset).into()
+        })
+    }
 }
 
 pub fn translated_byte_buffer(token: usize, ptr: *const u8, len: usize) -> Vec<&'static mut [u8]> {
@@ -162,4 +174,36 @@ pub fn translated_byte_buffer(token: usize, ptr: *const u8, len: usize) -> Vec<&
         start = end_va.into();
     }
     v
+}
+
+/// translate a pointer to a mutable u8 Vec end with `\0` through page table to a `String`
+/// 用pointer拿到字符串
+pub fn translated_str(token: usize, ptr: *const u8) -> String {
+    let page_table = PageTable::from_token(token);
+    let mut string = String::new();
+    let mut va = ptr as usize;
+    loop {
+        let ch: u8 = *(page_table
+            .translate_va(VirtualAddr::from(va))
+            .unwrap()
+            .get_mut());
+        if ch == 0 {
+            break;
+        } else {
+            string.push(ch as char);
+            va += 1;
+        }
+    }
+    string
+}
+///translate a generic through page table and return a mutable reference
+pub fn translated_refmut<T>(token: usize, ptr: *mut T) -> &'static mut T {
+    //println!("into translated_refmut!");
+    let page_table = PageTable::from_token(token);
+    let va = ptr as usize;
+    //println!("translated_refmut: before translate_va");
+    page_table
+        .translate_va(VirtualAddr::from(va))
+        .unwrap()
+        .get_mut()
 }
