@@ -5,8 +5,9 @@
 pub mod console;
 mod lang_items;
 mod syscall;
+mod buddy;
 
-use buddy_system_allocator::LockedHeap;
+use buddy::LockedHeap;
 use core::ptr::addr_of_mut;
 use syscall::*;
 const USER_HEAP_SIZE: usize = 16384;

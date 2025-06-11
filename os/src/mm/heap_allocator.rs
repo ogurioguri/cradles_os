@@ -1,7 +1,8 @@
 
-use buddy_system_allocator::LockedHeap;
+// use buddy_system_allocator::LockedHeap;
 use crate::config::KERNEL_HEAP_SIZE;
 use core::ptr::addr_of_mut;
+use super::LockedHeap;
 
 ///locked heap has finished the alloc and dealloc
 ///the global_allocator tell rust to use this heap
