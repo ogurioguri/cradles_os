@@ -26,9 +26,13 @@ pub fn handle_alloc_error(layout: core::alloc::Layout) -> ! {
 #[unsafe(no_mangle)]
 #[unsafe(link_section = ".text.entry")]
 pub extern "C" fn _start() -> ! {
+    unsafe {
+        HEAP.lock()
+            .init(addr_of_mut!(HEAP_SPACE) as usize, USER_HEAP_SIZE);
+    }
     exit(main());
-    panic!("unreachable after sys_exit!");
 }
+
 
 #[linkage = "weak"]
 #[unsafe(no_mangle)]
@@ -45,8 +49,8 @@ pub fn write(fd: usize, buf: &[u8]) -> isize {
 pub fn read(fd: usize, buf: &mut [u8]) -> isize { sys_read(fd, buf) }
 
 
-pub fn exit(exit_code: i32) -> isize {
-    sys_exit(exit_code)
+pub fn exit(exit_code: i32) -> ! {
+    sys_exit(exit_code);
 }
 pub fn yield_() -> isize {
     sys_yield()
