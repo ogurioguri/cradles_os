@@ -59,7 +59,7 @@ impl Heap {
             panic!("Memory region too large: size = {:#x}, order = {}", size, order);
         }
 
-        println!("1");
+        // println!("1");
 
         let mut total = 0;
         let mut current_start = start;
@@ -85,7 +85,7 @@ impl Heap {
             self.free_list[idx].push(current_start as *mut usize);
 
             current_start += size;
-            println!("2");
+            // println!("2");
         }
 
         self.total += total;

@@ -28,6 +28,7 @@ extern crate bitflags;
 
 use log::*;
 
+
 #[path = "boards/qemu.rs"]
 mod board;
 
@@ -43,6 +44,8 @@ pub mod syscall;
 pub mod task;
 mod timer;
 pub mod trap;
+/// 驱动程序模块，包含各种硬件设备的驱动实现
+pub mod drivers;
 
 core::arch::global_asm!(include_str!("entry.asm"));
 core::arch::global_asm!(include_str!("link_app.S"));
@@ -64,6 +67,7 @@ fn clear_bss() {
 pub fn rust_main() -> ! {
     clear_bss();
     info!("[kernel] Hello, world!");
+    drivers::uart::init();
     mm::init();
     mm::remap_test();
     task::add_initproc();

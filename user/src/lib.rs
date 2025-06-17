@@ -10,6 +10,10 @@ mod buddy;
 use buddy::LockedHeap;
 use core::ptr::addr_of_mut;
 use syscall::*;
+
+#[macro_use]
+extern crate bitflags;
+
 const USER_HEAP_SIZE: usize = 16384;
 
 static mut HEAP_SPACE: [u8; USER_HEAP_SIZE] = [0; USER_HEAP_SIZE];
@@ -40,7 +44,23 @@ fn main() -> i32 {
     panic!("Cannot find main!");
 }
 
+bitflags! {
+    pub struct OpenFlags: u32 {
+        const RDONLY = 0;
+        const WRONLY = 1 << 0;
+        const RDWR = 1 << 1;
+        const CREATE = 1 << 9;
+        const TRUNC = 1 << 10;
+    }
+}
 
+pub fn open(path: &str, flags: OpenFlags) -> isize {
+    sys_open(path, flags.bits)
+}
+/// Close a file descriptor
+pub fn close(fd: usize) -> isize {
+    sys_close(fd)
+}
 
 pub fn write(fd: usize, buf: &[u8]) -> isize {
     sys_write(fd, buf)

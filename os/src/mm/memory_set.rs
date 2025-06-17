@@ -179,6 +179,27 @@ impl MemorySet {
             None,
         );
     }
+    /// 映射MMIO设备内存区域
+    pub fn map_mmio(
+        &mut self,
+        name: &str,
+        start_pa: PhysicalAddr,
+        end_pa: PhysicalAddr,
+        permission: MapPermission,
+    ) {
+        println!("映射MMIO区域 {} 于 {:#x} - {:#x}", name, start_pa.0, end_pa.0);
+
+        // 创建一个新的映射区域，但不立即应用
+        let map_area = MapArea::new(
+            (start_pa.0).into(),
+            (end_pa.0).into(),
+            MapType::Identical,
+            permission,
+        );
+
+        // 使用push方法，它应该会处理冲突检查
+        self.push(map_area, None);
+    }
     ///内核地址空间
     pub fn new_kernel() -> Self {
         let mut memory_set = Self::new_bare();
@@ -243,17 +264,37 @@ impl MemorySet {
             None,
         );
         println!("mapping memory-mapped registers");
+        memory_set.map_mmio(
+            "UART",
+            PhysicalAddr::from(0x10000000),  // UART基址
+            PhysicalAddr::from(0x10001000),  // UART结束地址(4KB范围)
+            MapPermission::R | MapPermission::W,
+        );
+        memory_set.map_mmio(
+            "CLINT",
+            PhysicalAddr::from(0x2000000),      // CLINT基址
+            PhysicalAddr::from(0x2010000),      // CLINT结束地址(64KB)
+            MapPermission::R | MapPermission::W,
+        );
+        // 映射其他MMIO区域，但跳过UART区域以避免重复映射
         for pair in MMIO {
-            memory_set.push(
-                MapArea::new(
-                    (*pair).0.into(),
-                    ((*pair).0 + (*pair).1).into(),
-                    MapType::Identical,
+            // 检查是否与UART区域重叠
+            let start = (*pair).0;
+            let end = start + (*pair).1;
+            let uart_overlap = !(end <= 0x10000000 || start >= 0x10001000);
+            // 检查是否与CLINT区域重叠
+            let clint_overlap = !(end <= 0x2000000 || start >= 0x2010000);
+            if !uart_overlap && !clint_overlap {
+                memory_set.map_mmio(
+                    "Other MMIO",
+                    PhysicalAddr::from((*pair).0),
+                    PhysicalAddr::from((*pair).0 + (*pair).1),
                     MapPermission::R | MapPermission::W,
-                ),
-                None,
-            );
+                );
+            }
         }
+
+
         memory_set
     }
     /// Include sections in elf and trampoline and TrapContext and user stack,
@@ -450,6 +491,7 @@ pub fn remap_test() {
             .unwrap()
             .writable(),
     );
+    println!("1");
     assert!(
         !kernel_space
             .page_table
@@ -457,6 +499,7 @@ pub fn remap_test() {
             .unwrap()
             .writable(),
     );
+    println!("2");
     assert!(
         !kernel_space
             .page_table

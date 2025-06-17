@@ -16,10 +16,7 @@ use page_table::{PTEFlags, PageTable};
 pub use page_table::{PageTableEntry, translated_byte_buffer, translated_refmut, translated_str};
 pub use linked_list::{LinkedList};    
 pub use buddy::LockedHeap;
-
-
-
-
+use crate::console::print;
 
 pub fn init() {
     heap_allocator::init_heap();
